@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8' />
+    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
+    <meta name="description" content="Sqlpdo : Console access to database by PHP PDO" />
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>Sqlpdo</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/dinhoabreu/sqlpdo">View on GitHub</a>
+
+          <h1 id="project_title">Sqlpdo</h1>
+          <h2 id="project_tagline">Console access to database by PHP PDO</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/dinhoabreu/sqlpdo/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/dinhoabreu/sqlpdo/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <h1>sqlpdo</h1>
+
+<p>Console access to database by PHP PDO</p>
+
+<p>Following example:</p>
+
+<pre><code>./sqlpdo
+
+Connections
+test  Environ test
+test2 Environ test 2
+
+select one of the links above: test
+SQL&gt;create table a (id int);
+
+SQL&gt;insert into a (id) values (1);
+Affected rows: 1
+Timing: 0.003312
+
+SQL&gt;select * from a;
++--+
+|id|
++--+
+| 1|
++--+
+Rows: 1
+Timing: 0.000808
+</code></pre>
+
+<h2>Configuring connections</h2>
+
+<p>Edit sqlpdo.xml</p>
+
+<p>Example of 2 connetions using the driver sqlite:</p>
+
+<div class="highlight"><pre><span class="cp">&lt;?xml version="1.0"?&gt;</span>
+<span class="nt">&lt;pdo</span> <span class="na">history=</span><span class="s">".sqlpdo.hst"</span> <span class="na">history_size=</span><span class="s">"50"</span> <span class="na">verbose=</span><span class="s">"true"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;dsn</span> <span class="na">id=</span><span class="s">"test"</span> <span class="na">user=</span><span class="s">""</span> <span class="na">passwd=</span><span class="s">""</span> <span class="na">dsn=</span><span class="s">"sqlite:/tmp/teste.db"</span><span class="nt">&gt;</span>Environ test<span class="nt">&lt;/dsn&gt;</span>
+    <span class="nt">&lt;dsn</span> <span class="na">id=</span><span class="s">"test2"</span> <span class="na">user=</span><span class="s">""</span> <span class="na">passwd=</span><span class="s">""</span> <span class="na">dsn=</span><span class="s">"sqlite:/tmp/teste2.db"</span><span class="nt">&gt;</span>Environ test 2<span class="nt">&lt;/dsn&gt;</span>
+<span class="nt">&lt;/pdo&gt;</span>
+</pre></div>
+
+<p>Configure one or more &lt;dsn&gt; <a href="http://br1.php.net/manual/en/pdo.drivers.php">driver PDO</a> used.</p>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Sqlpdo maintained by <a href="https://github.com/dinhoabreu">dinhoabreu</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>

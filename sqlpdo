@@ -1,0 +1,425 @@
+#!/usr/bin/php -c ~/etc/php.ini
+<?php
+function eye($s, $color) {
+	static $istty = null, $c, $normal;
+	if ($istty === null) {
+		$istty = @posix_isatty(STDOUT) && @$_ENV['TERM'] == 'xterm-256color';
+		$c = array(
+			"normal" => "\033[00;00m",
+			"bold" => "\033[01;01m",
+			"red" => "\033[00;31m",
+			"red-bold" => "\033[01;31m",
+			"green" => "\033[00;32m",
+			"green-bold" => "\033[01;32m",
+			"blue" => "\033[00;34m",
+			"blue-bold" => "\033[01;34m");
+		$normal = "\033[00;00m";
+	}
+	if ($s === null)
+		return $istty ? $c[$color] : "";
+	return $istty ? $c[$color] . $s . $normal : $s;
+}
+interface Formatter {
+	function header($stmt, $rows);
+	function body($stmt, $row);
+	function footer($stmt, $n);
+}
+class MysqlFormatter implements Formatter {
+	private $h1;
+	private $sizecol;
+	private $charset = 'utf-8';
+	function __construct(SQLPDOCmd $cmd) {
+	}
+	function header($stmt, $rows) {
+		$h1 = null;
+		$h2 = null;
+		$colheader = null;
+		$this->sizecol = $sizecol = $this->sizeColumns($rows);
+		foreach ($sizecol as $name => $value) {
+			$namer = strtolower($name);
+			$desc = mb_strlen($name, $this->charset);
+			$h1 .= "+" . str_repeat('-', $sizecol[$name]);
+			$h2 .= "|" . $namer . str_repeat(' ', $sizecol[$name]-$desc);
+		}
+		$h1 .= "+\n";
+		$h2 .= "|\n";
+		$colheader = $h1.$h2.$h1;
+		$this->h1 = $h1;
+		echo $colheader;
+	}
+	function body($stmt, $row) {
+		$sizecol = $this->sizecol;
+		$line = "";
+		foreach ($row as $name => $value) {
+			$valuer = $value;
+			$desc = mb_strlen($value, $this->charset);
+			if (is_numeric($valuer))
+				$line .= "|" . str_repeat(' ', $sizecol[$name]-$desc) . $valuer;
+			else
+				$line .= "|$valuer" . str_repeat(' ', $sizecol[$name]-$desc);
+		}
+		$line .= "|\n";
+		echo $line;
+	}
+	function footer($stmt, $n) {
+		echo $this->h1;
+	}
+	private function sizeColumns($rowc) {
+		$sc = array();
+		$cn = 0;
+		foreach ($rowc as $id => $val) {
+			foreach ($val as $ds => $value) {
+				$d1 = mb_strlen($ds, $this->charset);
+				$d2 = mb_strlen($value, $this->charset);
+				$mx = max($d1, $d2);
+				if ($cn > 0) {
+					$d3 = $sc[$ds];
+					$mx = max($d3, $mx);
+				}
+				$sc[$ds] = $mx;
+			}
+			$cn++;
+		}
+		return $sc;
+	}
+}
+class XMLFormatter implements Formatter {
+	function header($stmt, $rows) {
+		$row = current($rows);
+		printf("<t>\n <h>");
+		foreach ($row as $name => $value) {
+			$name = strtolower($name);
+			printf("<c>$name</c>");
+			//printf($fmt, $name);
+		}
+		printf("</h>\n");
+	}
+	function body($stmt, $row) {
+		printf(" <r>");
+		foreach ($row as $name => $value) {
+			echo "<c>$value</c>";
+		}
+		printf("</r>\n");
+	}
+	function footer($stmt, $n) {
+		printf("</t>\n");
+	}
+}
+class SQLPDOCmd {
+	static $version = "0.1.0";
+	private $input_isatty;
+	private $output_isatty;
+	private $readline_loaded;
+	private $dbh;
+	private $filename;
+	private $size;
+	private $values = array();
+	private $history = true;
+
+	function SQLPDOCmd($dsn, $user, $pwd) {
+		$this->input_isatty = @posix_isatty(STDIN);
+		$this->output_isatty = @posix_isatty(STDOUT);
+		$this->readline_loaded = extension_loaded("readline") && function_exists("readline_list_history");
+		$this->dbh = new PDO($dsn, $user, $pwd);
+		$this->dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		if ($this->readline_loaded)
+			readline_completion_function(array("SQLPDOCmd", "completion"));
+	}
+	static function completion($s, $n) {
+		if (empty($s)) {
+			return array(
+				".set rows",
+				".set rows=10",
+				".set offset",
+				".set offset=15",
+				".set output",
+				".set output",
+				".set output=xml",
+				". filename",
+				"begin",
+				"commit",
+				"rollback",
+				"quit",
+				"exit"
+			);
+		}
+		return array();
+	}
+	function setHistory($filename, $size) {
+		$this->filename = $filename;
+		$this->size = is_numeric($size) ? (int)$size : 50;
+	}
+	function setVerbose($verb) {
+		$this->verbose = $verb;
+	}
+	function setVariable($name, $value) {
+		switch ($name) {
+		case "rows":
+		case "offset":
+			$value = (int)$value;
+			if ($value <= 0)
+				$value = null;
+			$this->values[$name] = $value;
+			break;
+		case "output":
+			$this->values[$name] = $value;
+			break;
+		}
+	}
+	function getVariable($name) {
+		if (array_key_exists($name, $this->values))
+			return $this->values[$name];
+		return null;
+	}
+	function showVariable($name) {
+		$value = $this->getVariable($name);
+		printf("%s=%s\n", $name, $value);
+	}
+	function createFormatter() {
+		$var = $this->getVariable("output");
+		switch ($var) {
+		case "xml":
+			return new XMLFormatter($this);
+		default:
+			return new MysqlFormatter($this);
+		}
+	}
+	function execute($sql) {
+		try {
+			$formatter = $this->createFormatter();
+			$timing = microtime(true);
+			$stmt = $this->dbh->query($sql);
+			$timing = sprintf("%.6f", microtime(true) - $timing);
+			$stmt->setFetchMode(PDO::FETCH_ASSOC);
+			$h = null;
+			$rows = $this->getVariable("rows");
+			$offset = $this->getVariable("offset");
+			$o = 0;
+			$p = 0;
+			if ($stmt->columnCount()) {
+				$vals = $stmt->fetchAll();
+				$formatter->header($stmt, $vals);
+				foreach ($vals as $val) {
+					if ($offset !== null && $o++ < $offset)
+						continue;
+					if ($rows !== null && ($p >= $rows))
+						break;
+					++$p;
+					$formatter->body($stmt, $val);
+				}
+				$formatter->footer($stmt, $p);
+				printf(eye("Rows:", 'blue').eye(" %d\n", 'green'), $p);
+				$stmt->closeCursor();
+			} else {
+				printf(eye("Affected rows:", 'blue') . eye(" %d\n", 'green'), $stmt->rowCount());
+			}
+			printf(eye("Timing:", 'blue') . eye(" %s\n", 'green'), $timing);
+			return true;
+		} catch (PDOException $e) {
+			echo eye($e->getMessage(), 'red') . "\n";
+			return false;
+		}
+	}
+
+	private function addHistory($s) {
+		if (!$this->input_isatty || !$this->readline_loaded || !$this->history)
+			return;
+		$hsts = readline_list_history();
+		$index = array_search($s, $hsts);
+		if ($index !== false) {
+			do {
+				array_splice($hsts, $index, 1);
+				$index = array_search($s, $hsts);
+			} while ($index !== false);
+			readline_clear_history();
+			foreach ($hsts as $hst)
+				readline_add_history($hst);
+		}
+		readline_add_history($s);
+		$hsts = readline_list_history();
+		$offset = count($hsts) - $this->size;
+		if ($offset > 0) {
+			$hsts = array_slice($hsts, $offset);
+			readline_clear_history();
+			foreach ($hsts as $hst)
+				readline_add_history($hst);
+		}
+	}
+
+	private function readline($prompt) {
+		if (!$this->input_isatty)
+			$prompt = "";
+		if ($this->readline_loaded && $this->input_isatty) {
+			$s = readline($prompt);
+		} else {
+			if ($prompt)
+				echo $prompt;
+			$s = fgets(STDIN);
+		}
+		return $s;
+	}
+	
+	function run() {
+		if ($this->readline_loaded && $this->filename != null)
+			readline_read_history($this->filename);
+		$lines = array();
+		$sqls = array();
+		$prompt = $_prompt = eye("SQL>", 'blue');
+		while (true) {
+			if (count($lines)) {
+				reset($lines);
+				$key = key($lines);
+				$s = $lines[$key];
+				unset($lines[$key]);
+			} else {
+				$this->history = true;
+				$s = $this->readline($prompt);
+				if ($s === false)
+					break;
+			}
+			if (ereg("^quit", $s) || ereg("^exit", $s))
+				break;
+			$end = false;
+			if (ereg("^([^;]*)(;)?[ ]*\r?\n?$", $s, $ms)) {
+				$sql = ($ms[1] !== false) ? $ms[1] : null;
+				$end = !!$ms[2];
+				if (count($sqls) == 0 && $sql) {
+					$_sql = $sql;
+					$sql = null;
+					if (ereg("^.set ([^=]*)=(.*)$", $_sql, $ms2)) {				
+						$this->setVariable($ms2[1], $ms2[2]);
+					} elseif (ereg("^.set (.*)$", $_sql, $ms2)) {				
+						$this->showVariable($ms2[1]);
+					} elseif (ereg("^begin", $_sql, $ms2)) {				
+						$ret = $this->dbh->beginTransaction();
+						if ($ret)
+							echo "transaction started.\n";
+						else
+							echo "transaction failed.\n";
+					} elseif (ereg("^commit", $_sql, $ms2)) {				
+						$ret = $this->dbh->commit();
+						if ($ret)
+							echo "commited.\n";
+						else
+							echo "commit failed.\n";
+					} elseif (ereg("^rollback", $_sql, $ms2)) {				
+						$ret = $this->dbh->rollBack();
+						if ($ret)
+							echo "rollback ok.\n";
+						else
+							echo "rollback failed.\n";
+					} elseif (ereg("^\. ", $_sql, $ms2)) {				
+						$path = ltrim(substr($_sql, 1));
+						if (substr($path, 0, 1) != "/")
+							$path = getcwd() . "/" . $path;
+						if (file_exists($path))
+							$lines = split("\n", file_get_contents($path, FILE_USE_INCLUDE_PATH));
+						else
+							echo "File $path does not exist.\n";
+						$this->history = false;
+					} else {
+						$sql = $_sql;
+					}
+					if (!$sql)
+						$this->addHistory($_sql);
+				} 
+				if ($sql)
+					$sqls[] = $sql;
+				if ($end == ";") {
+					if (count($sqls)) {
+						$sql = join($sqls, " ");
+						if (!$this->output_isatty)
+							echo $sql . "\n";
+						if ($this->execute(stripcslashes($sql)))
+							$this->addHistory($sql);
+					}
+					$prompt = "\n" . $_prompt;
+					$sqls = array();
+				} else {
+					if (count($sqls))
+						$prompt = "";
+				}
+			}
+		}
+		if ($this->readline_loaded && $this->filename != null)
+			readline_write_history($this->filename);
+	}
+
+	static function cmdline() {
+		$_namecfg = "sqlpdo.xml";
+		$_namecfg2 = $_ENV["HOME"] . "/" . $_namecfg;
+		if (!file_exists($_namecfg2))
+			$_namecfg2 = $_ENV["HOME"] . "/etc/" . $_namecfg;
+		if (!file_exists($_namecfg2))
+			$_namecfg2 = dirname(__FILE__) . "/" . $_namecfg;
+		$argc = $_SERVER["argc"];
+		$argv = $_SERVER["argv"];
+		$namecfg = null;
+		$dsnid = null;
+
+		if (@$argv[1] == "--version") {
+			echo "v" . self::$version . "\n";
+			return 0;
+		}
+
+		if (in_array($argc, array(2, 3)) && file_exists($argv[1]))
+			$namecfg = $argv[1];
+		else if (file_exists($_namecfg))
+			$namecfg = $_namecfg;
+		else if (file_exists($_namecfg2))
+			$namecfg = $_namecfg2;
+
+		if ($argc == 2 && !file_exists($argv[1]))
+			$dsnid = $argv[1];
+		else if ($argc == 3)
+			$dsnid = $argv[2];
+
+		if ($namecfg === null) {
+			echo "Configuration file not found.\n";
+			return 1;
+		}
+		$doccfg = DOMDocument::load($namecfg);
+		$xpath = new DOMXPath($doccfg);
+		$list = $xpath->query("/pdo/dsn");
+		$mlen = 0;
+		$charset = 'utf-8';
+		foreach ($list as $dsn)
+			$mlen = max($mlen, mb_strlen($dsn->getAttribute("id"), $charset));
+		$dsn = null;
+		while ($dsn === null) {
+			while ($dsnid === null) {
+				printf(eye("Connections\n", 'blue-bold'));
+				$list = $xpath->query("/pdo/dsn");
+				foreach ($list as $dsn) {
+					$id = $dsn->getAttribute("id");
+					printf(eye("%s", 'blue') . " %s\n", $id . str_repeat(' ', $mlen - mb_strlen($id, $charset)), $dsn->nodeValue);
+				}
+				printf("\nselect one of the links above: " . eye(null, 'blue'));
+				$dsnid = trim(fgets(STDIN));
+				echo eye(null, 'normal');
+			}
+			$list = $xpath->query(sprintf("/pdo/dsn[@id = '%s']", $dsnid));
+			$dsn = $list->item(0);
+			if ($dsn === null) {
+				printf(eye("Connection '%s' not found.\n\n", 'red'), $dsnid);
+				$dsnid = null;
+			}
+		}
+
+		try {
+			$cmd = new SQLPDOCmd($dsn->getAttribute("dsn"), $dsn->getAttribute("user"), $dsn->getAttribute("passwd"));
+			$cmd->setHistory($doccfg->documentElement->getAttribute("history"), $doccfg->documentElement->getAttribute("history_size"));
+			$cmd->setVerbose($doccfg->documentElement->getAttribute("verbose") == "true");
+			$cmd->run();
+		} catch (Exception $e) {
+			echo eye($e->getMessage(), 'red') . "\n";
+			if ($verbose) {
+				echo eye($e->getTraceAsString(), 'red');
+			}
+		}
+		return 0;
+	}
+
+}
+return SQLPDOCmd::cmdline();
+?>

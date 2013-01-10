@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<pdo history=".sqlpdo.hst" history_size="50" verbose="true">
+	<dsn id="test" user="" passwd="" dsn="sqlite:/tmp/teste.db">Environ test</dsn>
+	<dsn id="test2" user="" passwd="" dsn="sqlite:/tmp/teste2.db">Environ test 2</dsn>
+</pdo>

@@ -106,7 +106,7 @@ class XMLFormatter implements Formatter {
 	}
 }
 class SQLPDOCmd {
-	static $version = "0.1.0";
+	static $version = "0.1.1";
 	private $input_isatty;
 	private $output_isatty;
 	private $readline_loaded;
@@ -185,40 +185,34 @@ class SQLPDOCmd {
 		}
 	}
 	function execute($sql) {
-		try {
-			$formatter = $this->createFormatter();
-			$timing = microtime(true);
-			$stmt = $this->dbh->query($sql);
-			$timing = sprintf("%.6f", microtime(true) - $timing);
-			$stmt->setFetchMode(PDO::FETCH_ASSOC);
-			$h = null;
-			$rows = $this->getVariable("rows");
-			$offset = $this->getVariable("offset");
-			$o = 0;
-			$p = 0;
-			if ($stmt->columnCount()) {
-				$vals = $stmt->fetchAll();
-				$formatter->header($stmt, $vals);
-				foreach ($vals as $val) {
-					if ($offset !== null && $o++ < $offset)
-						continue;
-					if ($rows !== null && ($p >= $rows))
-						break;
-					++$p;
-					$formatter->body($stmt, $val);
-				}
-				$formatter->footer($stmt, $p);
-				printf(eye("Rows:", 'blue').eye(" %d\n", 'green'), $p);
-				$stmt->closeCursor();
-			} else {
-				printf(eye("Affected rows:", 'blue') . eye(" %d\n", 'green'), $stmt->rowCount());
+		$formatter = $this->createFormatter();
+		$timing = microtime(true);
+		$stmt = $this->dbh->query($sql);
+		$timing = sprintf("%.6f", microtime(true) - $timing);
+		$stmt->setFetchMode(PDO::FETCH_ASSOC);
+		$h = null;
+		$rows = $this->getVariable("rows");
+		$offset = $this->getVariable("offset");
+		$o = 0;
+		$p = 0;
+		if ($stmt->columnCount()) {
+			$vals = $stmt->fetchAll();
+			$formatter->header($stmt, $vals);
+			foreach ($vals as $val) {
+				if ($offset !== null && $o++ < $offset)
+					continue;
+				if ($rows !== null && ($p >= $rows))
+					break;
+				++$p;
+				$formatter->body($stmt, $val);
 			}
-			printf(eye("Timing:", 'blue') . eye(" %s\n", 'green'), $timing);
-			return true;
-		} catch (PDOException $e) {
-			echo eye($e->getMessage(), 'red') . "\n";
-			return false;
+			$formatter->footer($stmt, $p);
+			printf(eye("Rows:", 'blue').eye(" %d\n", 'green'), $p);
+			$stmt->closeCursor();
+		} else {
+			printf(eye("Affected rows:", 'blue') . eye(" %d\n", 'green'), $stmt->rowCount());
 		}
+		printf(eye("Timing:", 'blue') . eye(" %s\n", 'green'), $timing);
 	}
 
 	private function addHistory($s) {
@@ -330,8 +324,14 @@ class SQLPDOCmd {
 						$sql = join($sqls, " ");
 						if (!$this->output_isatty)
 							echo $sql . "\n";
-						if ($this->execute(stripcslashes($sql)))
+						try {
+							$this->execute(stripcslashes($sql));
 							$this->addHistory($sql);
+						} catch (PDOException $e) {
+							if ($this->output_isatty)
+								echo eye($sql, 'red') . "\n";
+							echo eye($e->getMessage(), 'red') . "\n";
+						}
 					}
 					$prompt = "\n" . $_prompt;
 					$sqls = array();

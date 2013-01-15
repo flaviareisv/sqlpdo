@@ -1,23 +1,28 @@
 #!/usr/bin/php -c ~/etc/php.ini
 <?php
 function eye($s, $color) {
-	static $istty = null, $c, $normal;
+	static $istty = null, $csi, $c, $reset;
 	if ($istty === null) {
 		$istty = @posix_isatty(STDOUT) && @$_ENV['TERM'] == 'xterm-256color';
+		$csi = "\033[";
 		$c = array(
-			"normal" => "\033[00;00m",
-			"bold" => "\033[01;01m",
-			"red" => "\033[00;31m",
-			"red-bold" => "\033[01;31m",
-			"green" => "\033[00;32m",
-			"green-bold" => "\033[01;32m",
-			"blue" => "\033[00;34m",
-			"blue-bold" => "\033[01;34m");
-		$normal = "\033[00;00m";
+			"normal" => "0",
+			"bold" => "1",
+			"red" => "31",
+			"green" => "32",
+			"blue" => "34");
+		$reset = $csi . "0m";
 	}
+	$flags = array();
+	foreach (explode("-", $color) as $flag) {
+		$value = @$c[$flag];
+		if ($value !== null)
+			$flags[] = $value;
+	}
+	$code = $csi . implode(";", $flags) . "m";
 	if ($s === null)
-		return $istty ? $c[$color] : "";
-	return $istty ? $c[$color] . $s . $normal : $s;
+		return $istty ? $code : "";
+	return $istty ? $code . $s . $reset : $s;
 }
 interface Formatter {
 	function header($stmt, $rows);
@@ -45,7 +50,7 @@ class MysqlFormatter implements Formatter {
 		$h2 .= "|\n";
 		$colheader = $h1.$h2.$h1;
 		$this->h1 = $h1;
-		echo $colheader;
+		print($colheader);
 	}
 	function body($stmt, $row) {
 		$sizecol = $this->sizecol;
@@ -59,10 +64,10 @@ class MysqlFormatter implements Formatter {
 				$line .= "|$valuer" . str_repeat(' ', $sizecol[$name]-$desc);
 		}
 		$line .= "|\n";
-		echo $line;
+		print($line);
 	}
 	function footer($stmt, $n) {
-		echo $this->h1;
+		print($this->h1);
 	}
 	private function sizeColumns($rowc) {
 		$sc = array();
@@ -90,14 +95,13 @@ class XMLFormatter implements Formatter {
 		foreach ($row as $name => $value) {
 			$name = strtolower($name);
 			printf("<c>$name</c>");
-			//printf($fmt, $name);
 		}
 		printf("</h>\n");
 	}
 	function body($stmt, $row) {
 		printf(" <r>");
 		foreach ($row as $name => $value) {
-			echo "<c>$value</c>";
+			print("<c>$value</c>");
 		}
 		printf("</r>\n");
 	}
@@ -106,7 +110,7 @@ class XMLFormatter implements Formatter {
 	}
 }
 class SQLPDOCmd {
-	static $version = "0.1.1";
+	static $version = "0.1.2";
 	private $input_isatty;
 	private $output_isatty;
 	private $readline_loaded;
@@ -247,7 +251,7 @@ class SQLPDOCmd {
 			$s = readline($prompt);
 		} else {
 			if ($prompt)
-				echo $prompt;
+				print($prompt);
 			$s = fgets(STDIN);
 		}
 		return $s;
@@ -256,6 +260,7 @@ class SQLPDOCmd {
 	function run() {
 		if ($this->readline_loaded && $this->filename != null)
 			readline_read_history($this->filename);
+		$ret = false;
 		$lines = array();
 		$sqls = array();
 		$prompt = $_prompt = eye("SQL>", 'blue');
@@ -287,21 +292,21 @@ class SQLPDOCmd {
 					} elseif (ereg("^begin", $_sql, $ms2)) {				
 						$ret = $this->dbh->beginTransaction();
 						if ($ret)
-							echo "transaction started.\n";
+							print("transaction started.\n");
 						else
-							echo "transaction failed.\n";
+							print("transaction failed.\n");
 					} elseif (ereg("^commit", $_sql, $ms2)) {				
 						$ret = $this->dbh->commit();
 						if ($ret)
-							echo "commited.\n";
+							print("commited.\n");
 						else
-							echo "commit failed.\n";
+							print("commit failed.\n");
 					} elseif (ereg("^rollback", $_sql, $ms2)) {				
 						$ret = $this->dbh->rollBack();
 						if ($ret)
-							echo "rollback ok.\n";
+							print("rollback ok.\n");
 						else
-							echo "rollback failed.\n";
+							print("rollback failed.\n");
 					} elseif (ereg("^\. ", $_sql, $ms2)) {				
 						$path = ltrim(substr($_sql, 1));
 						if (substr($path, 0, 1) != "/")
@@ -309,7 +314,7 @@ class SQLPDOCmd {
 						if (file_exists($path))
 							$lines = split("\n", file_get_contents($path, FILE_USE_INCLUDE_PATH));
 						else
-							echo "File $path does not exist.\n";
+							print("File $path does not exist.\n");
 						$this->history = false;
 					} else {
 						$sql = $_sql;
@@ -323,14 +328,16 @@ class SQLPDOCmd {
 					if (count($sqls)) {
 						$sql = join($sqls, " ");
 						if (!$this->output_isatty)
-							echo $sql . "\n";
+							print($sql . "\n");
 						try {
 							$this->execute(stripcslashes($sql));
 							$this->addHistory($sql);
+							$ret = true;
 						} catch (PDOException $e) {
 							if ($this->output_isatty)
-								echo eye($sql, 'red') . "\n";
-							echo eye($e->getMessage(), 'red') . "\n";
+								fprintf(STDERR, eye($sql, 'red') . "\n");
+							fprintf(STDERR, eye($e->getMessage(), 'red') . "\n");
+							$ret = false;
 						}
 					}
 					$prompt = "\n" . $_prompt;
@@ -343,6 +350,7 @@ class SQLPDOCmd {
 		}
 		if ($this->readline_loaded && $this->filename != null)
 			readline_write_history($this->filename);
+		return $ret;
 	}
 
 	static function cmdline() {
@@ -358,7 +366,7 @@ class SQLPDOCmd {
 		$dsnid = null;
 
 		if (@$argv[1] == "--version") {
-			echo "v" . self::$version . "\n";
+			print("v" . self::$version . "\n");
 			return 0;
 		}
 
@@ -375,7 +383,7 @@ class SQLPDOCmd {
 			$dsnid = $argv[2];
 
 		if ($namecfg === null) {
-			echo "Configuration file not found.\n";
+			fprintf(STDERR, "Configuration file not found.\n");
 			return 1;
 		}
 		$doccfg = DOMDocument::load($namecfg);
@@ -396,13 +404,15 @@ class SQLPDOCmd {
 				}
 				printf("\nselect one of the links above: " . eye(null, 'blue'));
 				$dsnid = trim(fgets(STDIN));
-				echo eye(null, 'normal');
+				print(eye(null, 'normal'));
 			}
 			$list = $xpath->query(sprintf("/pdo/dsn[@id = '%s']", $dsnid));
 			$dsn = $list->item(0);
 			if ($dsn === null) {
-				printf(eye("Connection '%s' not found.\n\n", 'red'), $dsnid);
+				fprintf(STDERR, eye("Connection '%s' not found.\n\n", 'red'), $dsnid);
 				$dsnid = null;
+				if ($argc > 1)
+					return 2;
 			}
 		}
 
@@ -410,16 +420,17 @@ class SQLPDOCmd {
 			$cmd = new SQLPDOCmd($dsn->getAttribute("dsn"), $dsn->getAttribute("user"), $dsn->getAttribute("passwd"));
 			$cmd->setHistory($doccfg->documentElement->getAttribute("history"), $doccfg->documentElement->getAttribute("history_size"));
 			$cmd->setVerbose($doccfg->documentElement->getAttribute("verbose") == "true");
-			$cmd->run();
+			$ret = $cmd->run();
+			return $ret ? 0 : 3;
 		} catch (Exception $e) {
-			echo eye($e->getMessage(), 'red') . "\n";
+			fprintf(STDERR, eye($e->getMessage(), 'red') . "\n");
 			if ($verbose) {
-				echo eye($e->getTraceAsString(), 'red');
+				fprintf(STDERR, eye($e->getTraceAsString(), 'red'));
 			}
 		}
-		return 0;
+		return 4;
 	}
 
 }
-return SQLPDOCmd::cmdline();
+exit(SQLPDOCmd::cmdline());
 ?>

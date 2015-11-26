@@ -1,0 +1,20 @@
+{
+    "pdo": [
+        {
+            "nome": "omega",
+            "dbname": "",
+            "user": "",
+            "password": "",
+            "host": "",
+            "driver": "pdo_mysql"
+        },
+        {
+            "nome": "toledo",
+            "dbname": "",
+            "user": "",
+            "password": "",
+            "host": "",
+            "driver": "pdo_mysql"
+        }
+    ]
+}

@@ -6,6 +6,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use SqlPdo\Helper\Configuration;
 
 class SqlpdoCommand extends Command {
     protected function configure()
@@ -15,16 +16,38 @@ class SqlpdoCommand extends Command {
             ->setDescription('Open connection to the database.')
             ->addArgument(
                 'con',
-                InputArgument::REQUIRED,
+                InputArgument::OPTIONAL,
                 'Connection name.'
             )
         ;
     }
 
+    protected function initialize()
+    {
+        if (empty(self::getAskList()))
+            throw new \RuntimeException('Not found configuration file.');
+    }
+
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $con = $input->getArgument('con');
+        $dialog = $this->getHelper('dialog');
+        $listPDO = self::getAskList();
 
-        $output->writeln($con);
+        $list = $dialog->select($output, 'Please select your connection:', $listPDO, 0);
+        $output->writeln('You have just selected: '.$listPDO[$list]);
+    }
+
+    private function getAsklist()
+    {
+        $conns = array();
+        $connPDO = Configuration::getConfig('pdo');
+
+        if (count($connPDO) > 0) {
+            foreach ($connPDO as $conn) {
+                $conns[] = $conn['nome'];
+            }
+        }
+
+        return $conns;
     }
 }

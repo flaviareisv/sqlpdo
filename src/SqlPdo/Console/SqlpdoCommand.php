@@ -6,9 +6,9 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Question\Question;
 use SqlPdo\Helper\Configuration;
 use SqlPdo\Helper\Database;
+use SqlPdo\Console\SqlCommand;
 
 class SqlpdoCommand extends Command {
     protected function configure()
@@ -34,19 +34,34 @@ class SqlpdoCommand extends Command {
     {
         $dialog = $this->getHelper('dialog');
         $listPDO = $this->getAskList();
+        $this->introduction($output);
 
         $listItem = $dialog->select($output, 'Please select your connection:', $listPDO, 0);
         $nameCon = $listPDO[$listItem];
+        $dataDB = Configuration::getConfigDB($nameCon);
 
-        $output->writeln('You have just selected: '.$nameCon);
+        $output->writeln('');
+        $output->writeln('Type \h for help');
+        $output->writeln('');
+        $output->writeln('Database: '.$dataDB['dbname']);
+        $output->writeln('');
 
         $con = $this->conn($nameCon);
-        $output->writeln(var_dump($con));
-        //$st = $con->query('select * from user');
-        //$output->writeln(var_dump($st));
-
         if ($con) {
-            
+            $run = true;
+
+            while ($run) {
+                $bundle = SqlCommand::lineCmd($input, $output);
+                $cmds = SqlCommand::getCmd($bundle);
+
+                if ($bundle == '\h') {
+                    SqlCommand::helpCommands($output);
+                }
+                elseif ($cmds) {
+                    SqlCommand::executeCmd($output, $bundle);
+                }
+                else $output->writeln('Tentar executar a query');
+            }
         }
         else throw new \RuntimeException('An unexpected error occurred.');
     }
@@ -58,7 +73,6 @@ class SqlpdoCommand extends Command {
 
         if (count($connPDO) > 0) {
             foreach ($connPDO as $conn) {
-                //$conns[] = $conn['nome'].(!empty($conn['descricao']) ? ' ('.$conn['descricao'].')' : '');
                 $conns[] = $conn['nome'];
             }
         }
@@ -72,4 +86,11 @@ class SqlpdoCommand extends Command {
 
         return $con;
     }
+
+    private function introduction(OutputInterface $output)
+    {
+        $output->writeln('Welcome SqlPdo '.APP_VERSION);
+        $output->writeln('');
+    }
+
 }

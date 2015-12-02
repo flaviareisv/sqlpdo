@@ -3,13 +3,16 @@
 
 require __DIR__.'/../vendor/autoload.php';
 
+defined('APP_VERSION') or define('APP_VERSION', '1.0.0');
+defined('SITE_SQLPDO') or define('SITE_SQLPDO', 'www.sqlpdo.com.br');
+
 use SqlPdo\Console\SqlpdoCommand;
 use Symfony\Component\Console\Application;
 
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-$app = new Application('Sqlpdo', '1.0.0');
+$app = new Application('Sqlpdo', APP_VERSION);
 
 $sqlpdo = new SqlpdoCommand();
 

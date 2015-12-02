@@ -12,18 +12,14 @@ class Database {
 
     function __construct($name)
     {
-        $cons = Configuration::getConfig('pdo');
+        $conn = Configuration::getConfigDB($name);
 
-        if (count($cons) > 0) {
-            foreach ($cons as $con_str) {
-                if ($con_str['nome'] == $name) {
-                    $this->dbname = $con_str['dbname'];
-                    $this->user = $con_str['user'];
-                    $this->password = $con_str['password'];
-                    $this->host = $con_str['host'];
-                    $this->driver = $con_str['driver'];
-                }
-            }
+        if (count($conn) > 0) {
+            $this->dbname = $conn['dbname'];
+            $this->user = $conn['user'];
+            $this->password = $conn['password'];
+            $this->host = $conn['host'];
+            $this->driver = $conn['driver'];
         }
     }
 

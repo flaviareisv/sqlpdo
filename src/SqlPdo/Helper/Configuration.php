@@ -16,4 +16,17 @@ class Configuration {
         return $out;
     }
 
+    function getConfigDB($name) {
+        $data = array();
+        $cons = self::getConfig('pdo');
+
+        if (count($cons) > 0) {
+            foreach ($cons as $con_str) {
+                if ($con_str['nome'] == $name) 
+                    $data = $con_str;
+            }
+        }
+
+        return $data;
+    }
 }

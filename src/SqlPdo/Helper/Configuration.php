@@ -2,7 +2,6 @@
 namespace SqlPdo\Helper;
 
 class Configuration {
-
     function getConfig($task) {
         $out = array();
         $pathConfig = $_SERVER["HOME"].'/.config/sqlpdo/config';
@@ -29,4 +28,5 @@ class Configuration {
 
         return $data;
     }
+
 }

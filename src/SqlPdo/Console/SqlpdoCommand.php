@@ -7,7 +7,6 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use SqlPdo\Helper\Configuration;
-use SqlPdo\Helper\Database;
 use SqlPdo\Console\SqlCommand;
 
 class SqlpdoCommand extends Command {
@@ -46,24 +45,19 @@ class SqlpdoCommand extends Command {
         $output->writeln('Database: '.$dataDB['dbname']);
         $output->writeln('');
 
-        $con = $this->conn($nameCon);
-        if ($con) {
-            $run = true;
+        $run = true;
+        while ($run) {
+            $bundle = SqlCommand::lineCmd($input, $output);
+            $cmds = SqlCommand::getCmd($bundle);
 
-            while ($run) {
-                $bundle = SqlCommand::lineCmd($input, $output);
-                $cmds = SqlCommand::getCmd($bundle);
-
-                if ($bundle == '\h') {
-                    SqlCommand::helpCommands($output);
-                }
-                elseif ($cmds) {
-                    SqlCommand::executeCmd($output, $bundle);
-                }
-                else $output->writeln('Tentar executar a query');
+            if ($bundle == '\h') {
+                SqlCommand::helpCommands($output);
             }
+            elseif ($cmds) {
+                SqlCommand::executeCmd($output, $bundle);
+            }
+            else SqlCommand::executeSQL($output, $nameCon, $bundle);
         }
-        else throw new \RuntimeException('An unexpected error occurred.');
     }
 
     private function getAsklist()
@@ -78,13 +72,6 @@ class SqlpdoCommand extends Command {
         }
 
         return $conns;
-    }
-
-    private function conn($nameCon) {
-        $db = new Database($nameCon);
-        $con = $db->getConn();
-
-        return $con;
     }
 
     private function introduction(OutputInterface $output)

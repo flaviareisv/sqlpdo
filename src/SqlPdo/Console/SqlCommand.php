@@ -7,6 +7,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\Question;
 use Symfony\Component\Console\Helper\Table;
+use SqlPdo\Helper\Database;
 
 class SqlCommand 
 {
@@ -68,6 +69,34 @@ class SqlCommand
             $output->writeln('Bye');
             exit();
         }
+    }
+
+    function executeSQL(OutputInterface $output, $name, $outSQL)
+    {
+        $conn = self::conn($name);
+
+        $st = $conn->query($outSQL);
+        $numRows = $st->rowCount();
+
+        if ($numRows > 0) {
+            $rows = $st->fetchAll();
+            $headers = array_keys($rows[0]);
+
+            $table = new Table($output);
+            $table->setHeaders($headers)->setRows($rows);
+            $table->render();
+        }
+
+        // footer
+        $output->writeln('Num rows: '.$numRows);
+        $output->writeln('');
+    }
+
+    private function conn($nameCon) {
+        $db = new Database($nameCon);
+        $con = $db->getConn();
+
+        return $con;
     }
     
 }

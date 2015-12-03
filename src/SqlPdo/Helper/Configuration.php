@@ -22,7 +22,7 @@ class Configuration {
 
         if (count($cons) > 0) {
             foreach ($cons as $con_str) {
-                if ($con_str['nome'] == $name) 
+                if ($con_str['name'] == $name) 
                     $data = $con_str;
             }
         }

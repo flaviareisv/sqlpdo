@@ -1,46 +1,59 @@
 # sqlpdo
 
-Console access to database by PHP PDO
+SqlPdo is console tool to access the database with PHP PDO.
 
 Following example:
-```
-./sqlpdo
 
-Connections
-test  Environ test
-test2 Environ test 2
+```bash
+sqlpdo
+Welcome SqlPdo 1.0.0
 
-select one of the links above: test
-SQL>create table a (id int);
+Please select your connection:
+  [0] local
+  [1] local2
+> 0
 
-SQL>insert into a (id) values (1);
-Affected rows: 1
-Timing: 0.003312
+Type \h for help
 
-SQL>select * from a;
-+--+
-|id|
-+--+
-| 1|
-+--+
-Rows: 1
-Timing: 0.000808
+Database: teste
+
+SQL >
 ```
 
 ## Configuring connections
 
-Edit sqlpdo.xml
+Edit $HOME/.config/sqlpdo/config
 
-Example of 2 connetions using the driver sqlite:
-```xml
-<?xml version="1.0"?>
-<pdo history=".sqlpdo.hst" history_size="50" verbose="true">
-	<dsn id="test" user="" passwd="" dsn="sqlite:/tmp/teste.db">Environ test</dsn>
-	<dsn id="test2" user="" passwd="" dsn="sqlite:/tmp/teste2.db">Environ test 2</dsn>
-</pdo>
+Example of 2 connetions using the driver mysql:
+
+```
+{
+    "pdo": [
+        {
+            "name": "local",
+            "description": "Database test",
+            "dbname": "test",
+            "user": "utest",
+            "password": "ptest",
+            "host": "localhost",
+            "driver": "pdo_mysql"
+        },
+        {
+            "name": "local2",
+            "description": "Database 2 test",
+            "dbname": "test2",
+            "user": "utest2",
+            "password": "ptest2",
+            "host": "localhost",
+            "driver": "pdo_mysql"
+        }
+    ]
+}
 ```
 
-Configure one or more &lt;dsn&gt; [driver PDO](http://br1.php.net/manual/en/pdo.drivers.php) used.
+For more details on connection [driver](http://docs.doctrine-project.org/projects/doctrine-dbal/en/latest/reference/configuration.html#connection-details).
+
+## Instalation
 
 ## License
 

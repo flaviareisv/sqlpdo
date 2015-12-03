@@ -73,7 +73,7 @@ class SqlpdoCommand extends Command {
 
         if (count($connPDO) > 0) {
             foreach ($connPDO as $conn) {
-                $conns[] = $conn['nome'];
+                $conns[] = $conn['name'];
             }
         }
 

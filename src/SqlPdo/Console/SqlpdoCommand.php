@@ -7,6 +7,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use SqlPdo\Helper\Configuration;
+use SqlPdo\Helper\Database;
 use SqlPdo\Console\SqlCommand;
 
 class SqlpdoCommand extends Command {
@@ -33,30 +34,37 @@ class SqlpdoCommand extends Command {
     {
         $dialog = $this->getHelper('dialog');
         $listPDO = $this->getAskList();
-        $this->introduction($output);
 
+        $output->writeln('Welcome SqlPdo '.APP_VERSION);
+        $output->writeln('');
         $listItem = $dialog->select($output, 'Please select your connection:', $listPDO, 0);
-        $nameCon = $listPDO[$listItem];
-        $dataDB = Configuration::getConfigDB($nameCon);
 
-        $output->writeln('');
-        $output->writeln('Type \h for help');
-        $output->writeln('');
-        $output->writeln('Database: '.$dataDB['dbname']);
-        $output->writeln('');
+        $conf = new Configuration();
+        $conf->setNameCon($listPDO[$listItem]);
+        $isCon = $this->isDBCon($conf);
 
-        $run = true;
-        while ($run) {
-            $bundle = SqlCommand::lineCmd($input, $output);
-            $cmds = SqlCommand::getCmd($bundle);
+        if ($isCon) {
+            $dataDB = $conf->getConfigDB();
+        
+            $output->writeln('');
+            $output->writeln('Type \h for help');
+            $output->writeln('');
+            $output->writeln('Database: '.$dataDB['dbname']);
+            $output->writeln('');
 
-            if ($bundle == '\h') {
-                SqlCommand::helpCommands($output);
+            $run = true;
+            while ($run) {
+                $bundle = SqlCommand::lineCmd($input, $output, $conf);
+                $cmds = SqlCommand::getCmd($bundle);
+
+                if ($bundle == '\h') {
+                    SqlCommand::helpCommands($output);
+                }
+                elseif ($cmds) {
+                    SqlCommand::executeCmdPDO($output, $bundle);
+                }
+                else SqlCommand::executeSQL($output, $bundle, $conf);
             }
-            elseif ($cmds) {
-                SqlCommand::executeCmd($output, $bundle);
-            }
-            else SqlCommand::executeSQL($output, $nameCon, $bundle);
         }
     }
 
@@ -74,10 +82,12 @@ class SqlpdoCommand extends Command {
         return $conns;
     }
 
-    private function introduction(OutputInterface $output)
+    private function isDBCon(Configuration $conf)
     {
-        $output->writeln('Welcome SqlPdo '.APP_VERSION);
-        $output->writeln('');
+        $db = new Database();
+        $isCon = $db->isEstablished($conf);
+
+        return $isCon;
     }
 
 }

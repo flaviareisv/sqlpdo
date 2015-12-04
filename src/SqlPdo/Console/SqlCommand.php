@@ -8,6 +8,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\Question;
 use Symfony\Component\Console\Helper\Table;
 use SqlPdo\Helper\Database;
+use SqlPdo\Helper\Configuration;
 
 class SqlCommand 
 {
@@ -33,10 +34,12 @@ class SqlCommand
         return false;
     }
 
-    function lineCmd(InputInterface $input, OutputInterface $output)
+    function lineCmd(InputInterface $input, OutputInterface $output, Configuration $conf)
     {
+        $driver = self::getCmdDriver($conf);
+
         $helper = $this->getHelper('question');
-        $question = new Question('SQL > ');
+        $question = new Question($driver);
         $bundle = $helper->ask($input, $output, $question);
 
         return $bundle;
@@ -63,22 +66,30 @@ class SqlCommand
         $table->render();
     }
 
-    function executeCmd(OutputInterface $output, $cmd)
+    function executeCmdPDO(OutputInterface $output, $cmd)
     {
-        if ($cmd == 'quit') {
-            $output->writeln('Bye');
-            exit();
+        $cmds = array_keys(self::sqlpdoCommands());
+
+        if (array_search($cmd, $cmds) !== false) {
+            switch ($cmd) {
+                case 'quit':
+                    $output->writeln('Bye');
+                    exit();
+                    break;
+            } 
         }
     }
 
-    function executeSQL(OutputInterface $output, $name, $outSQL)
+    function executeSQL(OutputInterface $output, $inSQL, Configuration $conf)
     {
-        $conn = self::conn($name);
+        $conn = self::conn($conf);
+        $time = microtime(true);
 
-        $st = $conn->query($outSQL);
+        $st = $conn->query($inSQL);
         $numRows = $st->rowCount();
 
         if ($numRows > 0) {
+            $time = sprintf("%.6f", microtime(true) - $time);
             $rows = $st->fetchAll();
             $headers = array_keys($rows[0]);
 
@@ -88,15 +99,38 @@ class SqlCommand
         }
 
         // footer
-        $output->writeln('Num rows: '.$numRows);
+        $output->writeln('Affected rows: '.$numRows.'    Timing: '.$time);
         $output->writeln('');
     }
 
-    private function conn($nameCon) {
-        $db = new Database($nameCon);
-        $con = $db->getConn();
+    private function conn(Configuration $conf) {
+        $db = new Database();
+        $con = $db->getConn($conf);
 
         return $con;
+    }
+
+
+    private function getCmdDriver(Configuration $conf)
+    {
+        $cmdDriver = "sql> ";
+        $drivers = array(
+            'pdo_mysql' => 'mysql> ',
+            'drizzle_pdo_mysql' => 'mysql> ',
+            'mysqli' => 'mysql> ',
+            'pdo_sqlite' => 'sqlite> ',
+            'pdo_pgsql' => 'psql> ',
+            'pdo_oci' => 'ora> ',
+            'oci8' => 'ora> ',
+        );
+
+        $cfg = $conf->getConfigDB();
+        $driver = $cfg['driver'];
+
+        if (array_key_exists($driver, $drivers) !== false)
+            $cmdDriver = $drivers[$driver];
+
+        return $cmdDriver;
     }
     
 }
